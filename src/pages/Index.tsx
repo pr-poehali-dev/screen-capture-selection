@@ -42,6 +42,7 @@ const Index = () => {
   const [isMonitoring, setIsMonitoring] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [sensitivity, setSensitivity] = useState(30);
+  const [lastDetected, setLastDetected] = useState<{ result: Result; time: string } | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -211,8 +212,14 @@ const Index = () => {
     const threshold = sensitivity / 100;
     
     if (leftBlue > rightPurple && leftBlue > threshold) {
+      const now = new Date();
+      const timeStr = now.toLocaleTimeString('ru-RU');
+      setLastDetected({ result: 'alpha', time: timeStr });
       addResult('alpha');
     } else if (rightPurple > leftBlue && rightPurple > threshold) {
+      const now = new Date();
+      const timeStr = now.toLocaleTimeString('ru-RU');
+      setLastDetected({ result: 'omega', time: timeStr });
       addResult('omega');
     }
   };
@@ -358,6 +365,17 @@ const Index = () => {
                 <span className="text-sm text-muted-foreground">Область захвата</span>
                 <Badge variant="outline">{Math.round(captureArea.width)}×{Math.round(captureArea.height)}px</Badge>
               </div>
+              {lastDetected && isMonitoring && (
+                <div className="flex items-center justify-between pt-2 border-t border-border">
+                  <span className="text-sm text-muted-foreground">Последнее распознавание</span>
+                  <div className="flex items-center gap-2">
+                    <Badge className={lastDetected.result === 'alpha' ? 'bg-secondary text-secondary-foreground' : 'bg-primary text-primary-foreground'}>
+                      {lastDetected.result === 'alpha' ? 'α Альфа' : 'ω Омега'}
+                    </Badge>
+                    <span className="text-xs text-muted-foreground font-mono">{lastDetected.time}</span>
+                  </div>
+                </div>
+              )}
               <Button 
                 size="sm" 
                 variant="ghost" 
