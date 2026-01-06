@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import Icon from '@/components/ui/icon';
 import { Progress } from '@/components/ui/progress';
 import { useToast } from '@/hooks/use-toast';
+import { ScreenCaptureSettings } from '@/components/ScreenCaptureSettings';
 
 type Result = 'alpha' | 'omega';
 
@@ -37,6 +38,8 @@ const Index = () => {
   const [isCapturing, setIsCapturing] = useState(false);
   const [captureArea, setCaptureArea] = useState<CaptureArea | null>(null);
   const [isMonitoring, setIsMonitoring] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [sensitivity, setSensitivity] = useState(30);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -162,26 +165,11 @@ const Index = () => {
     }
   };
 
-  const selectCaptureArea = () => {
-    if (!videoRef.current || !canvasRef.current) return;
-    
-    const video = videoRef.current;
-    const canvas = canvasRef.current;
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-    
-    ctx.drawImage(video, 0, 0);
-    
-    const area: CaptureArea = {
-      x: video.videoWidth * 0.25,
-      y: video.videoHeight * 0.25,
-      width: video.videoWidth * 0.5,
-      height: video.videoHeight * 0.5
-    };
-    
+  const openSettings = () => {
+    setShowSettings(true);
+  };
+
+  const handleAreaSelect = (area: CaptureArea) => {
     setCaptureArea(area);
     setIsCapturing(false);
     setIsMonitoring(true);
@@ -218,9 +206,11 @@ const Index = () => {
     const leftBlue = analyzeColorDominance(leftHalf, 'blue');
     const rightPurple = analyzeColorDominance(rightHalf, 'purple');
     
-    if (leftBlue > rightPurple && leftBlue > 0.3) {
+    const threshold = sensitivity / 100;
+    
+    if (leftBlue > rightPurple && leftBlue > threshold) {
       addResult('alpha');
-    } else if (rightPurple > leftBlue && rightPurple > 0.3) {
+    } else if (rightPurple > leftBlue && rightPurple > threshold) {
       addResult('omega');
     }
   };
@@ -339,9 +329,9 @@ const Index = () => {
             )}
             
             {isCapturing && (
-              <Button onClick={selectCaptureArea} className="flex-1" variant="secondary">
+              <Button onClick={openSettings} className="flex-1" variant="secondary">
                 <Icon name="Crosshair" size={18} className="mr-2" />
-                Выбрать область
+                Настроить область и чувствительность
               </Button>
             )}
             
@@ -355,6 +345,29 @@ const Index = () => {
 
           <video ref={videoRef} className="hidden" />
           <canvas ref={canvasRef} className="hidden" />
+
+          {captureArea && (
+            <div className="mt-3 p-3 bg-muted rounded-lg space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">Чувствительность</span>
+                <Badge variant="outline">{sensitivity}%</Badge>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">Область захвата</span>
+                <Badge variant="outline">{Math.round(captureArea.width)}×{Math.round(captureArea.height)}px</Badge>
+              </div>
+              <Button 
+                size="sm" 
+                variant="ghost" 
+                className="w-full" 
+                onClick={openSettings}
+                disabled={!isMonitoring}
+              >
+                <Icon name="Settings" size={14} className="mr-2" />
+                Изменить настройки
+              </Button>
+            </div>
+          )}
         </Card>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -516,6 +529,16 @@ const Index = () => {
           )}
         </Card>
       </div>
+
+      {showSettings && isCapturing && (
+        <ScreenCaptureSettings
+          videoRef={videoRef}
+          onAreaSelect={handleAreaSelect}
+          onClose={() => setShowSettings(false)}
+          sensitivity={sensitivity}
+          onSensitivityChange={setSensitivity}
+        />
+      )}
     </div>
   );
 };
