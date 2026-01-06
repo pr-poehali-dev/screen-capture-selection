@@ -43,6 +43,7 @@ const Index = () => {
   const [showSettings, setShowSettings] = useState(false);
   const [sensitivity, setSensitivity] = useState(30);
   const [lastDetected, setLastDetected] = useState<{ result: Result; time: string } | null>(null);
+  const [countdown, setCountdown] = useState(30);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -118,14 +119,28 @@ const Index = () => {
   useEffect(() => {
     let interval: NodeJS.Timeout;
     if (isMonitoring && captureArea) {
+      setCountdown(30);
       interval = setInterval(() => {
         analyzeScreen();
+        setCountdown(30);
       }, 30000);
     }
     return () => {
       if (interval) clearInterval(interval);
     };
   }, [isMonitoring, captureArea]);
+
+  useEffect(() => {
+    let timer: NodeJS.Timeout;
+    if (isMonitoring && countdown > 0) {
+      timer = setTimeout(() => {
+        setCountdown(countdown - 1);
+      }, 1000);
+    }
+    return () => {
+      if (timer) clearTimeout(timer);
+    };
+  }, [isMonitoring, countdown]);
 
   const makePrediction = () => {
     const updatedMethods = methods.map(method => {
@@ -365,6 +380,16 @@ const Index = () => {
                 <span className="text-sm text-muted-foreground">Область захвата</span>
                 <Badge variant="outline">{Math.round(captureArea.width)}×{Math.round(captureArea.height)}px</Badge>
               </div>
+              {isMonitoring && (
+                <div className="flex items-center justify-between pt-2 border-t border-border">
+                  <span className="text-sm text-muted-foreground">Следующая проверка через</span>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="secondary" className="font-mono text-lg">
+                      {countdown}с
+                    </Badge>
+                  </div>
+                </div>
+              )}
               {lastDetected && isMonitoring && (
                 <div className="flex items-center justify-between pt-2 border-t border-border">
                   <span className="text-sm text-muted-foreground">Последнее распознавание</span>
