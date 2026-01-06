@@ -6,6 +6,8 @@ import Icon from '@/components/ui/icon';
 import { Progress } from '@/components/ui/progress';
 import { useToast } from '@/hooks/use-toast';
 import { ScreenCaptureSettings } from '@/components/ScreenCaptureSettings';
+import { AccuracyChart } from '@/components/AccuracyChart';
+import { ExportStats } from '@/components/ExportStats';
 
 type Result = 'alpha' | 'omega';
 
@@ -500,34 +502,40 @@ const Index = () => {
           </div>
         </Card>
 
-        <Card className="p-6 space-y-4 animate-fade-in">
-          <h2 className="text-xl font-semibold flex items-center gap-2">
-            <Icon name="History" size={20} className="text-primary" />
-            История результатов
-          </h2>
+        <AccuracyChart methods={methods} />
 
-          {history.length > 0 ? (
-            <div className="flex flex-wrap gap-2">
-              {history.slice().reverse().map((entry) => (
-                <div
-                  key={entry.id}
-                  className={`px-4 py-2 rounded-lg font-medium text-sm ${
-                    entry.result === 'alpha'
-                      ? 'bg-secondary/20 text-secondary border border-secondary/50'
-                      : 'bg-primary/20 text-primary border border-primary/50'
-                  }`}
-                >
-                  {entry.result === 'alpha' ? 'α' : 'ω'}
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-8 text-muted-foreground">
-              <Icon name="FileX" size={48} className="mx-auto mb-3 opacity-30" />
-              <p>История пуста</p>
-            </div>
-          )}
-        </Card>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <Card className="p-6 space-y-4 animate-fade-in">
+            <h2 className="text-xl font-semibold flex items-center gap-2">
+              <Icon name="History" size={20} className="text-primary" />
+              История результатов
+            </h2>
+
+            {history.length > 0 ? (
+              <div className="flex flex-wrap gap-2">
+                {history.slice().reverse().map((entry) => (
+                  <div
+                    key={entry.id}
+                    className={`px-4 py-2 rounded-lg font-medium text-sm ${
+                      entry.result === 'alpha'
+                        ? 'bg-secondary/20 text-secondary border border-secondary/50'
+                        : 'bg-primary/20 text-primary border border-primary/50'
+                    }`}
+                  >
+                    {entry.result === 'alpha' ? 'α' : 'ω'}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8 text-muted-foreground">
+                <Icon name="FileX" size={48} className="mx-auto mb-3 opacity-30" />
+                <p>История пуста</p>
+              </div>
+            )}
+          </Card>
+
+          <ExportStats history={history} methods={methods} bestMethod={bestMethod} />
+        </div>
       </div>
 
       {showSettings && isCapturing && (
