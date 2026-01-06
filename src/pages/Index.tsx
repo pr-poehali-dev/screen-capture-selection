@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import Icon from '@/components/ui/icon';
 import { Progress } from '@/components/ui/progress';
+import { useToast } from '@/hooks/use-toast';
 
 type Result = 'alpha' | 'omega';
 
@@ -21,10 +22,25 @@ interface PredictionMethod {
   correct: number;
 }
 
+interface CaptureArea {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
 const Index = () => {
+  const { toast } = useToast();
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [currentPrediction, setCurrentPrediction] = useState<Result | null>(null);
   const [bestMethod, setBestMethod] = useState<string>('');
+  const [isCapturing, setIsCapturing] = useState(false);
+  const [captureArea, setCaptureArea] = useState<CaptureArea | null>(null);
+  const [isMonitoring, setIsMonitoring] = useState(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+
   const [methods, setMethods] = useState<PredictionMethod[]>([
     {
       name: 'Частотный анализ',
@@ -93,6 +109,18 @@ const Index = () => {
     }
   }, [history]);
 
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (isMonitoring && captureArea) {
+      interval = setInterval(() => {
+        analyzeScreen();
+      }, 2000);
+    }
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [isMonitoring, captureArea]);
+
   const makePrediction = () => {
     const updatedMethods = methods.map(method => {
       const prediction = method.predict(history);
@@ -108,7 +136,137 @@ const Index = () => {
     setMethods(updatedMethods);
   };
 
+  const startScreenCapture = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getDisplayMedia({
+        video: { mediaSource: 'screen' as any }
+      });
+      streamRef.current = stream;
+      
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        videoRef.current.play();
+      }
+      
+      setIsCapturing(true);
+      toast({
+        title: "Захват экрана активен",
+        description: "Выделите область с колонками Альфа и Омега"
+      });
+    } catch (err) {
+      toast({
+        title: "Ошибка",
+        description: "Не удалось начать захват экрана",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const selectCaptureArea = () => {
+    if (!videoRef.current || !canvasRef.current) return;
+    
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    
+    ctx.drawImage(video, 0, 0);
+    
+    const area: CaptureArea = {
+      x: video.videoWidth * 0.25,
+      y: video.videoHeight * 0.25,
+      width: video.videoWidth * 0.5,
+      height: video.videoHeight * 0.5
+    };
+    
+    setCaptureArea(area);
+    setIsCapturing(false);
+    setIsMonitoring(true);
+    
+    toast({
+      title: "Мониторинг запущен",
+      description: "Система начала автоматическое распознавание результатов"
+    });
+  };
+
+  const analyzeScreen = async () => {
+    if (!videoRef.current || !canvasRef.current || !captureArea) return;
+    
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    
+    canvas.width = captureArea.width;
+    canvas.height = captureArea.height;
+    
+    ctx.drawImage(
+      video,
+      captureArea.x, captureArea.y,
+      captureArea.width, captureArea.height,
+      0, 0,
+      captureArea.width, captureArea.height
+    );
+    
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const leftHalf = ctx.getImageData(0, 0, canvas.width / 2, canvas.height);
+    const rightHalf = ctx.getImageData(canvas.width / 2, 0, canvas.width / 2, canvas.height);
+    
+    const leftBlue = analyzeColorDominance(leftHalf, 'blue');
+    const rightPurple = analyzeColorDominance(rightHalf, 'purple');
+    
+    if (leftBlue > rightPurple && leftBlue > 0.3) {
+      addResult('alpha');
+    } else if (rightPurple > leftBlue && rightPurple > 0.3) {
+      addResult('omega');
+    }
+  };
+
+  const analyzeColorDominance = (imageData: ImageData, color: 'blue' | 'purple'): number => {
+    let matchingPixels = 0;
+    const data = imageData.data;
+    
+    for (let i = 0; i < data.length; i += 4) {
+      const r = data[i];
+      const g = data[i + 1];
+      const b = data[i + 2];
+      
+      if (color === 'blue') {
+        if (b > 150 && b > r && b > g && (b - r) > 50) {
+          matchingPixels++;
+        }
+      } else if (color === 'purple') {
+        if (b > 100 && r > 100 && b > g && Math.abs(r - b) < 80) {
+          matchingPixels++;
+        }
+      }
+    }
+    
+    return matchingPixels / (data.length / 4);
+  };
+
+  const stopMonitoring = () => {
+    setIsMonitoring(false);
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => track.stop());
+      streamRef.current = null;
+    }
+    setCaptureArea(null);
+    toast({
+      title: "Мониторинг остановлен",
+      description: "Захват экрана завершен"
+    });
+  };
+
   const addResult = (result: Result) => {
+    const lastResult = history[history.length - 1];
+    if (lastResult && Date.now() - lastResult.timestamp.getTime() < 5000) {
+      return;
+    }
+
     const newEntry: HistoryEntry = {
       id: Date.now(),
       result,
@@ -130,6 +288,11 @@ const Index = () => {
     }
 
     setHistory([...history, newEntry]);
+    
+    toast({
+      title: "Результат добавлен",
+      description: `Зафиксирован результат: ${result === 'alpha' ? 'Альфа' : 'Омега'}`
+    });
   };
 
   const clearHistory = () => {
@@ -152,6 +315,47 @@ const Index = () => {
           <h1 className="text-4xl font-bold tracking-tight">Система прогнозирования</h1>
           <p className="text-muted-foreground">ИИ-анализ паттернов Альфа/Омега</p>
         </div>
+
+        <Card className="p-6 space-y-4 animate-fade-in">
+          <div className="flex items-center justify-between">
+            <h2 className="text-xl font-semibold flex items-center gap-2">
+              <Icon name="Monitor" size={20} className="text-primary" />
+              Захват экрана
+            </h2>
+            {isMonitoring && (
+              <Badge className="animate-pulse-glow bg-green-500">
+                <Icon name="Radio" size={12} className="mr-1" />
+                Мониторинг активен
+              </Badge>
+            )}
+          </div>
+
+          <div className="flex gap-3 flex-wrap">
+            {!isCapturing && !isMonitoring && (
+              <Button onClick={startScreenCapture} className="flex-1">
+                <Icon name="ScreenShare" size={18} className="mr-2" />
+                Начать захват экрана
+              </Button>
+            )}
+            
+            {isCapturing && (
+              <Button onClick={selectCaptureArea} className="flex-1" variant="secondary">
+                <Icon name="Crosshair" size={18} className="mr-2" />
+                Выбрать область
+              </Button>
+            )}
+            
+            {isMonitoring && (
+              <Button onClick={stopMonitoring} className="flex-1" variant="destructive">
+                <Icon name="StopCircle" size={18} className="mr-2" />
+                Остановить мониторинг
+              </Button>
+            )}
+          </div>
+
+          <video ref={videoRef} className="hidden" />
+          <canvas ref={canvasRef} className="hidden" />
+        </Card>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <Card className="p-6 space-y-4 lg:col-span-2 animate-fade-in">
@@ -191,6 +395,7 @@ const Index = () => {
               <Button
                 onClick={() => addResult('alpha')}
                 className="flex-1 h-16 text-lg bg-secondary hover:bg-secondary/90"
+                disabled={isMonitoring}
               >
                 <Icon name="TrendingUp" size={20} className="mr-2" />
                 Альфа
@@ -198,6 +403,7 @@ const Index = () => {
               <Button
                 onClick={() => addResult('omega')}
                 className="flex-1 h-16 text-lg bg-primary hover:bg-primary/90"
+                disabled={isMonitoring}
               >
                 <Icon name="TrendingDown" size={20} className="mr-2" />
                 Омега
