@@ -119,7 +119,7 @@ const Index = () => {
     if (isMonitoring && captureArea) {
       interval = setInterval(() => {
         analyzeScreen();
-      }, 2000);
+      }, 1000);
     }
     return () => {
       if (interval) clearInterval(interval);
@@ -173,8 +173,8 @@ const Index = () => {
 
   const handleAreaSelect = (area: CaptureArea) => {
     setCaptureArea(area);
-    setIsCapturing(false);
     setIsMonitoring(true);
+    setShowSettings(false);
     
     toast({
       title: "Мониторинг запущен",
@@ -538,7 +538,7 @@ const Index = () => {
         </div>
       </div>
 
-      {showSettings && isCapturing && (
+      {showSettings && (isCapturing || isMonitoring) && (
         <ScreenCaptureSettings
           videoRef={videoRef}
           onAreaSelect={handleAreaSelect}
