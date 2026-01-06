@@ -120,7 +120,7 @@ const Index = () => {
     if (isMonitoring && captureArea) {
       interval = setInterval(() => {
         analyzeScreen();
-      }, 1000);
+      }, 30000);
     }
     return () => {
       if (interval) clearInterval(interval);
@@ -234,11 +234,11 @@ const Index = () => {
       const b = data[i + 2];
       
       if (color === 'blue') {
-        if (b > 150 && b > r && b > g && (b - r) > 50) {
+        if (b > 180 && g > 200 && r < 150 && (g - r) > 50 && (b - r) > 30) {
           matchingPixels++;
         }
       } else if (color === 'purple') {
-        if (b > 100 && r > 100 && b > g && Math.abs(r - b) < 80) {
+        if (r > 120 && b > 120 && g < 100 && Math.abs(r - b) < 60 && r > g && b > g) {
           matchingPixels++;
         }
       }
